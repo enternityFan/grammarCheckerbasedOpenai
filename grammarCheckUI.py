@@ -47,7 +47,13 @@ logging.basicConfig(
 configReader = Config.ConfigReader("config/config.json", "EWA")
 # Create a logger
 logger = logging.getLogger()
-
+# 创建控制台处理器
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+# 将处理器添加到日志记录器
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 
 os.environ["http_proxy"] = "http://127.0.0.1:7890"
@@ -130,12 +136,14 @@ class TextPopupWindow(QMainWindow):
 
         self.FontSize = None
         self.hot_key = None
+        self.max_token = None
         self.setConfig()
         self.tray_icon.show()
 
     def setConfig(self):
         self.FontSize = configReader.get_value("FontSize")
         self.hot_key = configReader.get_value("hot-key")
+        self.max_token = configReader.get_value("max_token")
     def setFontSize(self,htmlContent:string):
         # Define CSS styles
         htmlContent = """
@@ -162,6 +170,7 @@ class TextPopupWindow(QMainWindow):
 
         # plz help me to address this sentence's grammar error,if it exists.i will very感激。
         response = self.get_completion(prompt + text + "```")
+        logger.info("response: %s",response)
         if response == "":
             self.isSetText = False
             return
@@ -198,7 +207,7 @@ class TextPopupWindow(QMainWindow):
         cursor_pos = QCursor.pos()
 
         # 设置窗口位置为当前鼠标位置的上方
-        self.move(cursor_pos.x(), cursor_pos.y() - self.height()-40)  # 在下方留出一定的空间
+        self.move(cursor_pos.x(), cursor_pos.y() - self.height()-80)  # 在下方留出一定的空间
 
         # 调用父类的 showEvent
         super().showEvent(event)
@@ -238,9 +247,12 @@ class KeyboardListenerThread(QThread):
 
 
                 selected_text = get_selected_text()
-                print(selected_text)
-                if selected_text:
-                    self.text_selected.emit(selected_text)
+                #print(selected_text)
+                logger.info("select text: %s",selected_text)
+                if selected_text and len(selected_text) <= self.window.max_token:
+                    self.text_selected.emit(selected_text)#TODO 否则的话可以给一个信息框提示以下吧
+                else:
+                    logger.info("当前粘贴板内并无内容或内容过长！")
             return True
         # 启动键盘监听器
         with keyboard.Listener(on_press=on_press) as listener:
