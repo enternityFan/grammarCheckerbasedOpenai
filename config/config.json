@@ -1,8 +1,21 @@
 {
+  "EWA":
+  {
   "openai_api_key": "",
   "isAutoCopy": true,
   "max_token": 30,
-  "hot-key": "'!'",
+  "hot-key": "<49>",
+  "FontSize": 24
+
+  },
+  "CWA":
+ {
+  "openai_api_key": "",
+  "isAutoCopy": true,
+  "max_token": 100,
+  "hot-key": "<49>",
   "FontSize": 24
 
 }
+}
+

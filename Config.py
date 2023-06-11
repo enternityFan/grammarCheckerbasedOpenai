@@ -18,15 +18,16 @@ class ConfigReader:
             cls._instance = super(ConfigReader, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self,path):
+    def __init__(self,path,partten="EWA"):
         self.path = path
         self.config = {}
+        self.partten=partten
         self.load_config(path)
 
     def load_config(self,path):
         try:
             with open(path) as file:
-                self.config = json.load(file)
+                self.config = json.load(file)[self.partten]
         except FileNotFoundError:
             print("config.json file not found.")
     def get_value(self, key):
@@ -40,7 +41,7 @@ class ConfigReader:
 
 if __name__ == "__main__":
     # Usage example
-    config_reader = ConfigReader("config/config.json")
+    config_reader = ConfigReader("config/config.json","CWA")
     value = config_reader.get_value("max_token")
     print(value)
     print(config_reader.get_value("isAutoCopy"))
