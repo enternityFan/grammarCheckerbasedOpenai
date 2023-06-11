@@ -17,7 +17,9 @@ in their sentence,i hope it can 对你有很大的帮助！
 '''
 
 import os
+import string
 import sys
+from datetime import datetime
 
 import markdown2
 from PyQt5.QtGui import QCursor
@@ -36,7 +38,7 @@ import logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='logs/app.log',
+    filename='logs/app%s.log' % datetime.now().strftime("%Y%m%d%H%M%S"),
     filemode='w'
 )
 configReader = Config.ConfigReader("config/config.json")
@@ -72,7 +74,6 @@ def get_selected_text():
 
         # 从剪贴板获取选中文本
         selected_text = QApplication.clipboard()
-        print(selected_text.text())
         return selected_text.text()
     except:
         return ""
@@ -93,10 +94,27 @@ class TextPopupWindow(QMainWindow):
         self.text_browser.setOpenExternalLinks(True)  # 允许打开外部链接
         self.setCentralWidget(self.text_browser)
         self.setLayout(layout)
-        self.set_text(text)  # 初始化时设置文本
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
-
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.CustomizeWindowHint)
         self.isSetText = False
+        self.FontSize = configReader.get_value("FontSize")
+    def setFontSize(self,htmlContent:string):
+        # Define CSS styles
+        htmlContent = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <style>
+        body {{
+            font-size: {}px;
+        }}
+        </style>
+        </head>
+        <body>
+        {}
+        </body>
+        </html>
+        """.format(self.FontSize, htmlContent)
+        return htmlContent
 
     def set_text(self, text):
         logging.debug("set_text is called!")
@@ -107,6 +125,7 @@ class TextPopupWindow(QMainWindow):
         response = get_completion(prompt + text + "```")
         diff = Redlines(text, response)
         formatted_output = markdown2.markdown(diff.output_markdown)
+        formatted_output = self.setFontSize(formatted_output)
         self.text_browser.setHtml(formatted_output)
         self.isSetText = False
 
@@ -165,7 +184,7 @@ if __name__ == "__main__":
     # 创建窗口对象并连接信号
     window = TextPopupWindow("")
     window.setWindowTitle("Text Popup Window")
-    window.resize(300, 200)
+    window.resize(800, 300)
     # 创建键盘监听线程
     keyboard_listener_thread = KeyboardListenerThread(window)
     keyboard_listener_thread.start()

@@ -2,6 +2,7 @@
   "openai_api_key": "",
   "isAutoCopy": true,
   "max_token": 30,
-  "hot-key": "'!'"
+  "hot-key": "'!'",
+  "FontSize": 24
 
 }
