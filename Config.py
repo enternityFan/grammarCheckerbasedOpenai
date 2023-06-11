@@ -20,7 +20,7 @@ class ConfigReader:
 
     def __init__(self,path,partten="EWA"):
         self.path = path
-        self.config = {}
+        self.config = {"prompt":""}
         self.partten=partten
         self.load_config(path)
 
@@ -28,8 +28,14 @@ class ConfigReader:
         try:
             with open(path) as file:
                 self.config = json.load(file)[self.partten]
+            with open(path.split("/")[0] +"/" +  self.config["prompt_path"],'r',encoding='utf-8') as f:
+                self.config["prompt"] = f.read()
+                #print(self.config["prompt"])
+
         except FileNotFoundError:
-            print("config.json file not found.")
+            print("config.json or prompt file not found.")
+            if "prompt" not in self.config:
+                self.config["prompt"] = ""
     def get_value(self, key):
         return self.config.get(key)
 
@@ -41,7 +47,7 @@ class ConfigReader:
 
 if __name__ == "__main__":
     # Usage example
-    config_reader = ConfigReader("config/config.json","CWA")
+    config_reader = ConfigReader("config/config.json","EWA")
     value = config_reader.get_value("max_token")
     print(value)
     print(config_reader.get_value("isAutoCopy"))

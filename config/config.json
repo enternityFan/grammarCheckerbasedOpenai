@@ -3,9 +3,12 @@
   {
   "openai_api_key": "",
   "isAutoCopy": true,
-  "max_token": 30,
-  "hot-key": "<49>",
-  "FontSize": 24
+  "max_token": 200,
+  "hot-key": "<alt>+q",
+  "FontSize": 24,
+    "prompt_path":"EWAprompt2.txt",
+    "required_fields": ["correct_sentence"]
+
 
   },
   "CWA":

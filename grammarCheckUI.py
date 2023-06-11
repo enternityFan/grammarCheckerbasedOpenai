@@ -16,22 +16,26 @@ in their sentence,i hope it can 对你有很大的帮助！
 
 '''
 import ctypes
+import json
 import os
+import re
 import string
 import sys
 import time
 from datetime import datetime
 
+from pykeyboard import PyKeyboard
 import clipboard
 import markdown2
 from PyQt5.QtGui import QCursor, QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTextBrowser, QVBoxLayout, QMessageBox, QWidget, QSystemTrayIcon, \
-    QAction, QMenu
-from PyQt5.QtCore import Qt, pyqtSignal, QThread, QPoint, QRect, QEvent
+    QAction, QMenu, QSizePolicy, QSpacerItem
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QPoint, QRect, QEvent, QCoreApplication
 from pynput import keyboard
 import pyautogui
 import pygetwindow as gw
 import openai
+from pynput.keyboard import Key
 from redlines import Redlines
 from IPython.display import display, Markdown, Latex, HTML, JSON
 import Config
@@ -49,7 +53,7 @@ configReader = Config.ConfigReader("config/config.json", "EWA")
 logger = logging.getLogger()
 # 创建控制台处理器
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
+console_handler.setLevel(logging.INFO)
 # 将处理器添加到日志记录器
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
@@ -64,8 +68,6 @@ if configReader.get_value("openai_api_key") != "":
 else:
     api_key = os.environ.get("OPENAI_API_KEY")
 
-text = ""
-prompt = f"First of all, if there is Chinese, please help me translate Chinese into proper English, and please explain the grammatical rules contained therein :```"
 
 
 
@@ -79,11 +81,15 @@ def get_selected_text():
 
         # 打印剪贴板内容
         # 延迟一段时间，等待剪贴板内容的更新
-        time.sleep(0.2)
+        time.sleep(0.5)
         selected_text = clipboard.paste()
         return selected_text
     except:
         return ""
+
+
+class MyGeneratorJosnError(Exception):
+    pass
 class HtmlTextViewer(QTextBrowser):
     def __init__(self):
         super().__init__()
@@ -101,14 +107,17 @@ class TextPopupWindow(QMainWindow):
         self.setWindowIcon(QIcon("resource/icon.png"))
         self.text_browser = HtmlTextViewer()
         self.text_browser.setOpenExternalLinks(True)  # 允许打开外部链接
-        self.text_browser.setContentsMargins(0, 0, 120, 120)# 设置控件边界
+        #self.text_browser.setContentsMargins(0, 0, 120, 120)# 设置控件边界
         layout.addWidget(self.text_browser)
         # 设置主窗口的布局
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+
+
         self.setWindowFlags(Qt.WindowStaysOnTopHint )
         self.isSetText = False
+        self.pre_selected_text = ""
 
         self.drag_position = QPoint()
         self.setMouseTracking(True)  # 开启鼠标追踪
@@ -137,6 +146,7 @@ class TextPopupWindow(QMainWindow):
         self.FontSize = None
         self.hot_key = None
         self.max_token = None
+        self.prompt = ""
         self.setConfig()
         self.tray_icon.show()
 
@@ -144,6 +154,7 @@ class TextPopupWindow(QMainWindow):
         self.FontSize = configReader.get_value("FontSize")
         self.hot_key = configReader.get_value("hot-key")
         self.max_token = configReader.get_value("max_token")
+        self.prompt = configReader.get_value("prompt")
     def setFontSize(self,htmlContent:string):
         # Define CSS styles
         htmlContent = """
@@ -163,24 +174,63 @@ class TextPopupWindow(QMainWindow):
         """.format(self.FontSize, htmlContent)
         return htmlContent
 
-    def set_text(self, text):
+    def json_to_html(self,data,originalText):
+        html = '<html>\n<head>\n<style>\n' \
+               'body {{font-size: {}px; font-family: Arial, sans-serif; }}\n' \
+               'span.key {{ color: #008000; font-weight: bold; }}\n' \
+               'span.value {{ color: #000000; }}\n' \
+               'span.correct-sentence {{ color: #FF0000; font-weight: bold; }}\n' \
+               '</style>\n</head>\n<body>\n'.format(self.FontSize)
+
+        diff = Redlines(originalText, data["correct_sentence"])
+        html_correct_sentence = markdown2.markdown(diff.output_markdown)
+        html +=html_correct_sentence
+        if 'evaluate' in data:
+            evaluate = data['evaluate']
+            html += '<p><span class="key">evaluate: </span><span class="value">{}</span></p>\n'.format(evaluate)
+        for filed in data:
+            if filed in ("evaluate","correct_sentence"):
+                continue
+            filed = data[filed]
+            html += '<p><span class="key">explain:</span></p>\n<ul>\n'
+            for key, value in filed.items():
+                html += '<li><span class="key">{}</span>: <span class="value">{}</span></li>\n'.format(key, value)
+            html += '</ul>\n'
+        html += '</body>\n</html>'
+        return html
+    def process_text(self,text):
+
+        json_string = self.get_completion(self.prompt + text)
+        logger.info("original: %s", text)
+        logger.info("response: %s", json_string)
+        if json_string == "":
+            self.pre_selected_text = ""
+            self.isSetText = False
+            return
+
+        jsonContent = json.loads(json_string)
+
+        html_text = self.json_to_html(jsonContent,text)
+        return html_text
+    def set_text(self, original_text):
         logging.debug("set_text is called!")
         self.isSetText= True
         print("process!...")
 
+        display_html = self.process_text(original_text)
         # plz help me to address this sentence's grammar error,if it exists.i will very感激。
-        response = self.get_completion(prompt + text + "```")
-        logger.info("response: %s",response)
-        if response == "":
-            self.isSetText = False
-            return
-        diff = Redlines(text, response)
-        formatted_output = markdown2.markdown(diff.output_markdown)
-        formatted_output = self.setFontSize(formatted_output)
-        self.text_browser.setHtml(formatted_output)
+        self.pre_selected_text = original_text
+        self.text_browser.setHtml(display_html)
         self.isSetText = False
 
     def get_completion(self, prompt, model="gpt-3.5-turbo", temperature=0):
+        """
+        该函数返回一个json文件,如果chatgpt并没有生成合适的json文件，那么就返回""
+        :param prompt:
+        :param model:
+        :param temperature:
+        :return:
+        """
         messages = [{"role": "user", "content": prompt}]
         try:
             response = openai.ChatCompletion.create(
@@ -188,13 +238,31 @@ class TextPopupWindow(QMainWindow):
                 messages=messages,
                 temperature=temperature)
 
-            return response.choices[0].message["content"]
-        except:
+            json_text = response.choices[0].message["content"]
+            json_match_pattern = r'```json\s+(.*?)\s+```'
+            json_matches = re.findall(json_match_pattern, json_text, re.DOTALL)# FIXME 假设只有一个，如果又多个说明生成的不对。
+            if json_matches == [] or "correct_sentence" not in json_matches[0]:#REVIEW 这个correct_sentence还是必须生成的
+                raise MyGeneratorJosnError("抱歉~我脑子笨未成功生成高质量答案，再试一下吧...")
+
+            return json_matches[0]
+        except MyGeneratorJosnError as e:
+            logger.error(str(e))
             # 创建一个消息框
             message_box = QMessageBox(self)
             message_box.setWindowTitle("Message")
-            message_box.setText("请确保你输入的api-key正确！")
+            #message_box.setText("请确保你输入的api-key正确！")
+            message_box.setText(str(e))
             message_box.exec_()
+            #TODO 这里可以做个操作，让主界面也给隐藏掉
+            return ""
+        except :
+            # 创建一个消息框
+            message_box = QMessageBox(self)
+            message_box.setWindowTitle("Message")
+            #message_box.setText("请确保你输入的api-key正确！")
+            message_box.setText("请确保你输入的api-key，网络环境等正确！")
+            message_box.exec_()
+
 
             return ""
     def closeEvent(self, event):
@@ -205,9 +273,12 @@ class TextPopupWindow(QMainWindow):
     def showEvent(self, event):
         # 获取当前鼠标位置
         cursor_pos = QCursor.pos()
-
+        print("here!")
         # 设置窗口位置为当前鼠标位置的上方
-        self.move(cursor_pos.x(), cursor_pos.y() - self.height()-80)  # 在下方留出一定的空间
+        cur_y =cursor_pos.y() - self.height()-80 #默认在上方
+        if cur_y < 0:
+            cur_y = cursor_pos.y() +80 #在下方生成
+        self.move(cursor_pos.x(),cur_y )  # 在下方留出一定的空间
 
         # 调用父类的 showEvent
         super().showEvent(event)
@@ -229,34 +300,50 @@ class KeyboardListenerThread(QThread):
     def __init__(self,window:TextPopupWindow):
         QThread.__init__(self)
         self.window = window
+        self.keyControler = keyboard.Controller()
 
 
     def run(self):
-#you are a very smart friend!
-        def on_press(key):
+        #you are a very smart friend!
+        def on_process():
             #print(key, "is press!")
 
-            if str(key) == self.window.hot_key:
-                if self.window.isSetText:
-                    print("正在发送请求。。。请稍后")
-                    # TODO 可能有更好的解决方案，这里做的操作是，如果当前已经向openai发送了请求，那么就不再检测了
-                    return True
-                print(f"热键被同时按下")
-                # 模拟按下 Ctrl+C
-                kb.press_and_release('ctrl+c')
+            if self.window.isSetText:
+                print("正在发送请求。。。请稍后")
+                # TODO 可能有更好的解决方案，这里做的操作是，如果当前已经向openai发送了请求，那么就不再检测了
+                return True
+            print(f"热键被同时按下")
+            # 模拟按下 Ctrl+C
+            #TODO 还是没有模拟成功:<
+            # self.keyControler.press(keyboard.Key.ctrl)
+            # self.keyControler.press('c')
+            #
+            # # 模拟释放 Ctrl 键和 C 键
+            # self.keyControler.release('c')
+            # self.keyControler.release(Key.ctrl)
 
 
-                selected_text = get_selected_text()
-                #print(selected_text)
-                logger.info("select text: %s",selected_text)
-                if selected_text and len(selected_text) <= self.window.max_token:
-                    self.text_selected.emit(selected_text)#TODO 否则的话可以给一个信息框提示以下吧
-                else:
-                    logger.info("当前粘贴板内并无内容或内容过长！")
+
+            selected_text = get_selected_text()
+            # if selected_text == window.pre_selected_text:
+            #     #其实这里有两个好处，一个是减少查询，二个是呼出主界面在对应的位置.
+            #     logger.info("您已经查询过了: %s",selected_text)
+            #     return True
+            #print(selected_text)
+            logger.info("select text: %s",selected_text)
+            if selected_text and len(selected_text) <= self.window.max_token:
+                self.text_selected.emit(selected_text)#TODO 否则的话可以给一个信息框提示以下吧
+            else:
+                logger.info("当前粘贴板内并无内容或内容过长！")
             return True
         # 启动键盘监听器
-        with keyboard.Listener(on_press=on_press) as listener:
-            listener.join()
+        hotkey = keyboard.GlobalHotKeys({
+            self.window.hot_key: on_process})
+        hotkey.start()
+        hotkey.wait()
+        hotkey.join()
+
+
 
 if __name__ == "__main__":
     # 启用高DPI支持
