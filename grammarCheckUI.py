@@ -188,12 +188,12 @@ class TextPopupWindow(QMainWindow):
         if 'evaluate' in data:
             evaluate = data['evaluate']
             html += '<p><span class="key">evaluate: </span><span class="value">{}</span></p>\n'.format(evaluate)
-        for filed in data:
-            if filed in ("evaluate","correct_sentence"):
+        for filed in data.keys():
+            if filed in ["evaluate","correct_sentence"]:
                 continue
-            filed = data[filed]
-            html += '<p><span class="key">explain:</span></p>\n<ul>\n'
-            for key, value in filed.items():
+            subFiled = data[filed]
+            html += '<p><span class="key">{}:</span></p>\n<ul>\n'.format(filed)
+            for key, value in subFiled.items():
                 html += '<li><span class="key">{}</span>: <span class="value">{}</span></li>\n'.format(key, value)
             html += '</ul>\n'
         html += '</body>\n</html>'

@@ -33,6 +33,11 @@ this is an app used to help English writers practice  correcting  grammar  and s
 
 ## 开发计划
 1. 日志数据挖掘：通过日志来利用反复查询的数据进行更进一步的利用,训练使用者写作能力(EWA)。
+2. 把请求openai的功能放在线程里面去做。
+3. 界面观察者模式。当openai弄好之后，把数据存放在某个地方里去就行了，然后界面在那个地方去拿就行。
+
+
+
 
 ## v0.1 2023-06-11
 1. 实现了EWA的基础功能(后台运行，双击隐藏，界面美化)。
