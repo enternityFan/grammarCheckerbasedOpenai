@@ -22,6 +22,7 @@ import re
 import string
 import sys
 import time
+from asyncio import sleep
 from datetime import datetime
 
 from pykeyboard import PyKeyboard
@@ -98,6 +99,8 @@ class HtmlTextViewer(QTextBrowser):
         if event.button() == Qt.LeftButton:
             self.parent().parent().hide()
 
+
+
 class TextPopupWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -122,7 +125,8 @@ class TextPopupWindow(QMainWindow):
         self.drag_position = QPoint()
         self.setMouseTracking(True)  # 开启鼠标追踪
         self.resize_handle_size = 10  # 设置边缘调整大小的触发区域大小
-
+        # ================处理线程相关的
+        self.processFlag = False
         # =================设置系统托管相关=================
         # 创建系统托盘图标
         self.tray_icon = QSystemTrayIcon(QIcon("resource/icon.png"), self)
@@ -149,7 +153,6 @@ class TextPopupWindow(QMainWindow):
         self.prompt = ""
         self.setConfig()
         self.tray_icon.show()
-
     def setConfig(self):
         self.FontSize = configReader.get_value("FontSize")
         self.hot_key = configReader.get_value("hot-key")
@@ -295,8 +298,6 @@ class TextPopupWindow(QMainWindow):
         message_box.exec_()
 
 class KeyboardListenerThread(QThread):
-    text_selected = pyqtSignal(str)
-
     def __init__(self,window:TextPopupWindow):
         QThread.__init__(self)
         self.window = window
@@ -313,28 +314,8 @@ class KeyboardListenerThread(QThread):
                 # TODO 可能有更好的解决方案，这里做的操作是，如果当前已经向openai发送了请求，那么就不再检测了
                 return True
             print(f"热键被同时按下")
-            # 模拟按下 Ctrl+C
-            #TODO 还是没有模拟成功:<
-            # self.keyControler.press(keyboard.Key.ctrl)
-            # self.keyControler.press('c')
-            #
-            # # 模拟释放 Ctrl 键和 C 键
-            # self.keyControler.release('c')
-            # self.keyControler.release(Key.ctrl)
+            self.window.processFlag = True
 
-
-
-            selected_text = get_selected_text()
-            # if selected_text == window.pre_selected_text:
-            #     #其实这里有两个好处，一个是减少查询，二个是呼出主界面在对应的位置.
-            #     logger.info("您已经查询过了: %s",selected_text)
-            #     return True
-            #print(selected_text)
-            logger.info("select text: %s",selected_text)
-            if selected_text and len(selected_text) <= self.window.max_token:
-                self.text_selected.emit(selected_text)#TODO 否则的话可以给一个信息框提示以下吧
-            else:
-                logger.info("当前粘贴板内并无内容或内容过长！")
             return True
         # 启动键盘监听器
         hotkey = keyboard.GlobalHotKeys({
@@ -343,6 +324,40 @@ class KeyboardListenerThread(QThread):
         hotkey.wait()
         hotkey.join()
 
+class getMessageThread(QThread):
+    text_selected = pyqtSignal(str)
+
+    def __init__(self,window:TextPopupWindow):
+        QThread.__init__(self)
+        self.window = window
+
+
+    def run(self):
+       while(1):
+           if self.window.processFlag:
+               time.sleep(0.1)#等待热键释放alt+q
+               self.window.processFlag = False
+               # 模拟按下 Ctrl+C
+               # TODO 还是没有模拟成功:<
+               kb.press("ctrl")
+               kb.press("c")
+               time.sleep(0.01)
+               kb.release("c")
+               kb.release("ctrl")
+
+               selected_text = get_selected_text()
+               # if selected_text == window.pre_selected_text:
+               #     #其实这里有两个好处，一个是减少查询，二个是呼出主界面在对应的位置.
+               #     logger.info("您已经查询过了: %s",selected_text)
+               #     return True
+               # print(selected_text)
+               logger.info("select text: %s", selected_text)
+               if selected_text and len(selected_text) <= self.window.max_token:
+                   self.text_selected.emit(selected_text)  # TODO 否则的话可以给一个信息框提示以下吧
+               else:
+                   logger.info("当前粘贴板内并无内容或内容过长！")
+           else:
+               time.sleep(0.01)
 
 
 if __name__ == "__main__":
@@ -360,7 +375,9 @@ if __name__ == "__main__":
     # 创建键盘监听线程
     keyboard_listener_thread = KeyboardListenerThread(window)
     keyboard_listener_thread.start()
-    keyboard_listener_thread.text_selected.connect(window.set_text)
-    keyboard_listener_thread.text_selected.connect(window.show)
 
+    get_message_thread = getMessageThread(window)
+    get_message_thread.start()
+    get_message_thread.text_selected.connect(window.set_text)
+    get_message_thread.text_selected.connect(window.show)
     sys.exit(app.exec_())
