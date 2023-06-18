@@ -7,7 +7,10 @@
 
 
 # pyinstaller发布
+```python
+pyinstaller -F -w -i ./resource/icon.png grammarCheckUI.py
 
+```
 
 # EWA(English Writer Assitant)
 this is an app used to help English writers practice  correcting  grammar  and spell error in their sentences.

@@ -42,7 +42,6 @@ from IPython.display import display, Markdown, Latex, HTML, JSON
 import Config
 import logging
 import keyboard as kb
-from Observer import Subject,Observer
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
