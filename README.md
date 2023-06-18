@@ -5,6 +5,10 @@
 ，我尝试过直接通过python第三方库来模拟ctrl+c的操作以此来省去复制句子这个环节，不过尝试了几个第三方库效果都不好，这个bug留到以后去修改吧。
 用户可以把该界面拖拽到合适的位置，或者直接双击就可以再次隐藏界面。
 
+
+# pyinstaller发布
+
+
 # EWA(English Writer Assitant)
 this is an app used to help English writers practice  correcting  grammar  and spell error in their sentences.
 以下是一个示例图：
@@ -38,6 +42,7 @@ this is an app used to help English writers practice  correcting  grammar  and s
 ## v0.11
 1. 修复了ctrl c的问题之前的问题是因为，我在热键的on_precess的过程中模拟的，自然不行，因为此时还未释放热键，这就会导致不止ctrl+c，还有热键在同时按，
 然后我开了个新的线程来做这件事，热键的线程只是用来捕捉热键，这么进行一个分离，并且ms太快了，我加了100ms的延时后才ctrl+c，最终修复了这个bug。
+2. 开了一个线程来处理发送到openai请求，修复卡顿的问题。
 
 
 ## v0.1 2023-06-11

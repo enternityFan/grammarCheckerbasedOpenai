@@ -42,6 +42,7 @@ from IPython.display import display, Markdown, Latex, HTML, JSON
 import Config
 import logging
 import keyboard as kb
+from Observer import Subject,Observer
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
@@ -215,14 +216,8 @@ class TextPopupWindow(QMainWindow):
 
         html_text = self.json_to_html(jsonContent,text)
         return html_text
-    def set_text(self, original_text):
+    def set_text(self, display_html):
         logging.debug("set_text is called!")
-        self.isSetText= True
-        print("process!...")
-
-        display_html = self.process_text(original_text)
-        # plz help me to address this sentence's grammar error,if it exists.i will very感激。
-        self.pre_selected_text = original_text
         self.text_browser.setHtml(display_html)
         self.isSetText = False
 
@@ -337,8 +332,6 @@ class getMessageThread(QThread):
            if self.window.processFlag:
                time.sleep(0.1)#等待热键释放alt+q
                self.window.processFlag = False
-               # 模拟按下 Ctrl+C
-               # TODO 还是没有模拟成功:<
                kb.press("ctrl")
                kb.press("c")
                time.sleep(0.01)
@@ -353,7 +346,16 @@ class getMessageThread(QThread):
                # print(selected_text)
                logger.info("select text: %s", selected_text)
                if selected_text and len(selected_text) <= self.window.max_token:
-                   self.text_selected.emit(selected_text)  # TODO 否则的话可以给一个信息框提示以下吧
+                   self.window.isSetText = True
+
+                   self.window.pre_selected_text = selected_text
+                   display_html = self.window.process_text(selected_text)
+                   self.text_selected.emit(display_html)  # TODO 否则的话可以给一个信息框提示以下吧
+                   # plz help me to address this sentence's grammar error,if it exists.i will very感激。
+
+
+
+
                else:
                    logger.info("当前粘贴板内并无内容或内容过长！")
            else:
